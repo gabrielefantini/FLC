@@ -40,12 +40,15 @@ parser code 	{:
 ///// SYMBOLS DECLARATION
 /////////////////////////////////
 
-terminal PLUS, MINUS, STAR, DIV, S, RO, RC, BO, BC, PRINT_LABEL, WITH_LABEL, END_LABEL, COMPARE_LABEL;
-terminal tok1, tok2;
+terminal SEP, PLUS, MINUS, STAR, DIV, S, EQ, RO, RC, BO, BC, PRINT_LABEL, WITH_LABEL, END_LABEL, COMPARE_LABEL;
+terminal TOK1, TOK2;
+terminal String VARIABLE;
+terminal Integer INT;
 
 non terminal Integer expr, NT0;
-non terminal boolean NT1, NT2;
+non terminal NT1, NT2, tok1, tok2;
 non terminal program, header, commands, seq1, seq2, tok1_list, tok1_l, command, assigment, compare, print, print_list;
+non terminal comp_list, comp;
 
 precedence left PLUS, MINUS;
 precedence left STAR, DIV;
@@ -60,40 +63,51 @@ program ::= header SEP commands;
 
 header ::= seq1 | seq2;
 
-seq1 ::= tok1_list tok1 tok1 tok1 tok1 tok1 tok2 tok2 tok2 
-		| tok1_list tok1 tok1 tok1 tok1 tok1 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 ; 
+seq1 ::= tok1_list tok2 tok2 tok2 
+		| tok1_list tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 ; 
 
-tok1_list ::= tok1_list tok1 tok1;
+tok1_list ::= tok1_list tok1 tok1 | tok1 tok1 tok1 tok1 tok1;
 
 seq2 ::= tok2 tok1_l tok2 tok1_l tok2 tok1_l ;
 
 tok1_l ::= tok1_l tok1 | /*epsilon*/;
+
+tok1 ::= TOK1 S;
+tok2 ::= TOK2 S;
 
 commands ::= commands command | /*epsilon*/;
 command ::= assigment | compare;
 
 assigment ::= VARIABLE:x EQ expr:value S {:parser.table.put(x, value);:};
 
-compare ::= COMPARE_LABEL expr WITH_LABEL comp_list END_LABEL S;
+compare ::= COMPARE_LABEL expr WITH_LABEL NT0 comp_list END_LABEL S;
 
 comp_list ::= comp_list NT0 comp | comp;
-NT0 ::= /*epsilon*/ {:RESULT= parser.stack(-2):};
+
+NT0 ::= /*epsilon*/ {:RESULT = (Integer) parser.stack(-1);:};
+
 comp ::= expr BO NT1 print_list BC ;
-NT1 ::= /*epsilon*/ {:RESULT= parser.stack(-1) == parser.stack(-2);:}
+
+NT1 ::= /*epsilon*/ {:
+                        Integer expr1 = (Integer)parser.stack(-1);
+                        Integer expr2 = (Integer)parser.stack(-2);
+                        RESULT=(boolean)( expr1.intValue() == expr2.intValue());
+                        :};
+
 print_list ::= print_list NT2 print | print ;
-NT2 ::= /*epsilon*/{:RESULT= parser.stack(-1);:}
-print ::= PRINT_LABEL expr:value S {:if(parser.stack(-1) == true){System.out.println(value)}:};
+
+NT2 ::= /*epsilon*/{:RESULT=(boolean)parser.stack(-1);:};
+
+print ::= PRINT_LABEL expr:value S {:if((boolean)parser.stack(-3)){System.out.println(value);}:};
 
 // Expressions
 expr ::= 
-    /* Arithmetic expressions */
-    | expr:x PLUS  expr:y {: RESULT=x+y; :} 
+    expr:x PLUS  expr:y {: RESULT=x+y; :} 
     | expr:x MINUS expr:y  {: RESULT=x-y; :}
     | expr:x STAR  expr:y {: RESULT=x*y; :}
-    | expr:x DIV expr:y {: RESULT=(integer)(x/y); :}
+    | expr:x DIV expr:y {: RESULT=(Integer)(x/y); :}
     | RO expr:x RC {: RESULT=x; :}
-    | VARIABLE:x {: RESULT=(Integer)parser.table.get(a);; :}
+    | VARIABLE:x {: RESULT= parser.table.get(x); :}
     | INT:x {: RESULT=x; :}
-    | RO error RC {: pSynWarning("Error in expression"); :}
 ;
 
