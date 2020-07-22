@@ -1,0 +1,99 @@
+/*************************
+ Parser
+**************************/
+
+import java_cup.runtime.*;
+import java.util.*;
+import java.io.*;
+
+init with {:
+    table = new HashMap<String, Integer>();
+:};
+
+
+parser code 	{:
+    
+	public HashMap<String, Integer> table;
+	
+    public void report_error(String message, Object info) {
+        StringBuffer m = new StringBuffer(message);
+        if (info instanceof Symbol) {
+            if (((Symbol)info).left != 1 && ((Symbol)info).right != 1) {
+                if (((Symbol)info).left != -1 && ((Symbol)info).right != -1) {
+                    int line = (((Symbol)info).left) + 1;
+                    int column = (((Symbol)info).right) + 1;
+                    m.append(" (line " + line + " column " + column + ")");
+                }
+            }
+            System.err.println(m);
+        }
+    }
+    
+    public Object stack(int position) {
+        return (((Symbol)stack.elementAt(tos + position)).value);
+    }
+:};
+
+
+
+//////////////////////////////////
+///// SYMBOLS DECLARATION
+/////////////////////////////////
+
+terminal PLUS, MINUS, STAR, DIV, S, RO, RC, BO, BC, PRINT_LABEL, WITH_LABEL, END_LABEL, COMPARE_LABEL;
+terminal tok1, tok2;
+
+non terminal Integer expr, NT0;
+non terminal boolean NT1, NT2;
+non terminal program, header, commands, seq1, seq2, tok1_list, tok1_l, command, assigment, compare, print, print_list;
+
+precedence left PLUS, MINUS;
+precedence left STAR, DIV;
+
+//////////////////////////////////
+///// GRAMMAR
+/////////////////////////////////
+
+start with program;
+
+program ::= header SEP commands;
+
+header ::= seq1 | seq2;
+
+seq1 ::= tok1_list tok1 tok1 tok1 tok1 tok1 tok2 tok2 tok2 
+		| tok1_list tok1 tok1 tok1 tok1 tok1 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 tok2 ; 
+
+tok1_list ::= tok1_list tok1 tok1;
+
+seq2 ::= tok2 tok1_l tok2 tok1_l tok2 tok1_l ;
+
+tok1_l ::= tok1_l tok1 | /*epsilon*/;
+
+commands ::= commands command | /*epsilon*/;
+command ::= assigment | compare;
+
+assigment ::= VARIABLE:x EQ expr:value S {:parser.table.put(x, value);:};
+
+compare ::= COMPARE_LABEL expr WITH_LABEL comp_list END_LABEL S;
+
+comp_list ::= comp_list NT0 comp | comp;
+NT0 ::= /*epsilon*/ {:RESULT= parser.stack(-2):};
+comp ::= expr BO NT1 print_list BC ;
+NT1 ::= /*epsilon*/ {:RESULT= parser.stack(-1) == parser.stack(-2);:}
+print_list ::= print_list NT2 print | print ;
+NT2 ::= /*epsilon*/{:RESULT= parser.stack(-1);:}
+print ::= PRINT_LABEL expr:value S {:if(parser.stack(-1) == true){System.out.println(value)}:};
+
+// Expressions
+expr ::= 
+    /* Arithmetic expressions */
+    | expr:x PLUS  expr:y {: RESULT=x+y; :} 
+    | expr:x MINUS expr:y  {: RESULT=x-y; :}
+    | expr:x STAR  expr:y {: RESULT=x*y; :}
+    | expr:x DIV expr:y {: RESULT=(integer)(x/y); :}
+    | RO expr:x RC {: RESULT=x; :}
+    | VARIABLE:x {: RESULT=(Integer)parser.table.get(a);; :}
+    | INT:x {: RESULT=x; :}
+    | RO error RC {: pSynWarning("Error in expression"); :}
+;
+
